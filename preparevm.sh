@@ -1,6 +1,6 @@
 #! /bin/bash
 # Automatic VM preparation for PE code testing
-# This script assumes that work is being done off of the newest PE builds.
+# This script assumes that you will be working off of the newest PE builds.
 # Thus, the tarball source dir should be kept up to date.
 # Development packages and scripts must be placed into the staging directory 
 
@@ -17,8 +17,8 @@ DEVSCRIPTS="/Users/whopper/Packages/vm_staging/scripts"
 DEVPKGS="/Users/whopper/Packages/vm_staging/packages"
 VMIMGS="/Users/whopper/VMs"
 DebianInst="${VMIMGS}/pe-debian6.vmwarevm/pe-debian6.vmx"
-Centos5Inst="${VMIMGS}/pe-centos6.vmwarevm/pe-centos6.vmx"
-Centos6Inst="${VMIMGS}/pe-centos5.vmwarevm/pe-centos5.vmx"
+Centos6Inst="${VMIMGS}/pe-centos6.vmwarevm/pe-centos6.vmx"
+Centos5Inst="${VMIMGS}/pe-centos5.vmwarevm/pe-centos5.vmx"
 Sles11Inst="${VMIMGS}/pe-sles11.vmwarevm/pe-sles11.vmx"
 LucidInst="${VMIMGS}/pe-ubuntu-lucid.vmwarevm/pe-ubuntu-lucid.vmx"
 PreciseInst="/Users/whopper/Ubuntu.vmwarevm/Ubuntu.vmx"
@@ -37,25 +37,25 @@ elif [ ${1} = "debian" ]; then
   TO_USE="${DebianInst}"
   STATE="Debian 6 Clean State"
   VMHOSTNAME="debian"
-elif [ ${1} = "centos5" ]; then
+elif [ ${1} = "el-5" ]; then
   TO_USE=${Centos5Inst}
   STATE="Centos5 Clean State"
-  VMHOSTNAME="pe-centos5"
-elif [ ${1} = "centos6" ]; then
+  VMHOSTNAME="centos5"
+elif [ ${1} = "el-6" ]; then
   TO_USE=${Centos6Inst}
   STATE="Snapshot"
-  VMHOSTNAME="pe-centos6"
-elif [ ${1} = "sles11" ]; then
+  VMHOSTNAME="centos6"
+elif [ ${1} = "sles-11" ]; then
   TO_USE=${Sles11Inst}
   STATE="SLES11-SP2"
-  VMHOSTNAME="pe-sles11"
+  VMHOSTNAME="sles11"
 elif [ ${1} = "lucid" ]; then
   TO_USE=${LucidInst}
   STATE="Lucid Clean State"
   VMHOSTNAME="lucid"
 elif [ ${1} = "precise" ]; then
   TO_USE=${PreciseInst}
-  STATE="Ubuntu-Precise-Clean"
+  STATE="Clean Precise"
   VMHOSTNAME="precise"
 elif [ ${1} = "solaris" ]; then
   TO_USE=${SolarisInst}
@@ -63,6 +63,7 @@ elif [ ${1} = "solaris" ]; then
   HOSTNAME="solaris10"
 else
   echo "Error: Unrecognized OS..."
+  echo "Options are: debian, lucid, precise, el-5, el-6, sles-11, solaris"
   exit 1
 fi
 
@@ -75,42 +76,35 @@ if ! ps -elf | grep ssh-agent > /dev/null; then
 fi
 
 # Prepare authorized_keys 
-if [ ${1} != 'precise' ]; then
   scp "${KEYFILE}" root@"${VMHOSTNAME}":~root
+  ssh root@"${VMHOSTNAME}" 'mkdir -p ~/.ssh && touch ~/.ssh/authorized_keys > /dev/null'
   ssh root@"${VMHOSTNAME}" 'cat ~/id_rsa.pub >> .ssh/authorized_keys'
-else
-  scp "${HOSTSFILE}" "${VMHOSTNAME}":~
-  ssh "${VMHOSTNAME}" 'sudo -i && cat ~whopper/id_rsa.pub >> .ssh/authorized_keys'
-fi
 
 # Update the VM's /etc/hosts
-if [ ${1} != 'precise' ]; then
   scp "${HOSTSFILE}" root@"${VMHOSTNAME}":~root
   ssh root@"${VMHOSTNAME}" 'cat ~/HOSTSFILE >> /etc/hosts'
-else
-  scp "${HOSTSFILE}" "${VMHOSTNAME}":~
-  ssh "${VMHOSTNAME}" 'sudo -i && cat ~whopper/HOSTSFILE >> /etc/hosts'
-fi
 
 # Copy latest tarball to the VM and extract it
-TOCOPY=$(ls ${PETARS} | grep ${1})
-if [ ${1} != 'precise' ]; then
-  scp "${PETARS}"/"${TOCOPY}" root@"${VMHOSTNAME}":~root
-  ssh root@"${VMHOSTNAME}" 'tar -zvxf puppet* > /dev/null 2>&1'
-  ssh root@"${VMHOSTNAME}" 'mkdir ~/tarball && mv *.tar.gz ~/tarball'
+if [ ${1} != 'lucid' -a ${1} != 'precise' ]; then
+  TOCOPY=$(ls ${PETARS} | grep ${1})
 else
-  scp "${PETARS}"/"${TOCOPY}" "${VMHOSTNAME}":~
-  ssh "${VMHOSTNAME}" 'sudo -i && mv ~whopper/* . && tar -zvxf puppet* > /dev/null 2>&1'
-  ssh "${VMHOSTNAME}" 'sudo -i && mkdir ~/tarball && mv *.tar.gz ~/tarball'
+  if [ ${1} = 'lucid' ]; then
+    TOCOPY=$(ls ${PETARS} | grep '10.04')
+  else
+    TOCOPY=$(ls ${PETARS} | grep '12.04')
+  fi
 fi
 
+scp "${PETARS}"/"${TOCOPY}" root@"${VMHOSTNAME}":~root
+ssh root@"${VMHOSTNAME}" 'tar -zvxf puppet* > /dev/null 2>&1'
+ssh root@"${VMHOSTNAME}" 'mkdir ~/tarball && mv *.tar.gz ~/tarball'
+
 # Put dev packages and scripts in place
-if [ ${1} != 'precise' ]; then
-  for each in $(ls ${DEVSCRIPTS}); do
-    ssh root@"${VMHOSTNAME}" 'mkdir ~/scripts'
-    scp ${DEVSCRIPTS}/${each} root@"${VMHOSTNAME}":~/scripts
-    ssh root@"${VMHOSTNAME}" 'mv ~/scripts/* puppet-enterprise*'
-  done
+for each in $(ls ${DEVSCRIPTS}); do
+  ssh root@"${VMHOSTNAME}" 'mkdir ~/scripts'
+  scp ${DEVSCRIPTS}/${each} root@"${VMHOSTNAME}":~/scripts
+  ssh root@"${VMHOSTNAME}" 'mv ~/scripts/* puppet-enterprise*'
+done
 
 REGEX=$(ls ${DEVPKGS} | grep -o --regexp='.*_[0-9]')
 
@@ -120,24 +114,4 @@ if [ -n ${REGEX} ]; then
     scp ${DEVPKGS}/${each} root@"${VMHOSTNAME}":~/pkgs
     ssh root@"${VMHOSTNAME}" 'rm ~/HOSTSFILE ~/id_rsa.pub'
   done
-fi
-
-# For precise 
-else
-  for each in ${DEVSCRIPTS}; do
-    ssh "${VMHOSTNAME}" 'sudo -i && mkdir ~/scripts'
-    scp ${each} "${VMHOSTNAME}":~whopper/scripts
-    ssh "${VMHOSTNAME}" 'sudo -i && mv ~whopper/scripts/* puppet-enterprise*'
-    ssh "${VMHOSTNAME}" 'sudo -i && rm ~/HOSTSFILE ~/id_rsa.pub'
-  done
-
-REGEX=$(ls ${DEVPKGS} | grep -o --regexp='.*_[0-9]')
-
-if [ -n ${REGEX} ]; then
-  for each in $(ls ${DEVPKGS}); do
-    ssh root@"${VMHOSTNAME}" 'mkdir ~/pkgs'
-    scp ${DEVPKGS}/${each} root@"${VMHOSTNAME}":~/pkgs
-  done
-fi
-
 fi
