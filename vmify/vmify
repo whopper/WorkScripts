@@ -22,21 +22,34 @@ command = Cri::Command.define do
   option :v, :version,  'specify version', argument: :optional
   option :a, :arch, 'specify architecture', argument: :optional
   option :c, :connect, 'remote into newly allocated VM', argument: :optional
+  option :r, :remove, 'destroy an allocated vm by hostname', argument: :optional
 
   run do |opts, args, cmd|
-    os        = opts.fetch(:operatingsystem) if opts[:operatingsystem]
-    version   = opts.fetch(:version)         if opts[:version]
-    arch      = opts.fetch(:arch)            if opts[:arch]
 
-    curl_string = build_curl_string(os, version, arch)
-    #puts "Debugging: #{curl_string}"
-    hostname = request_vm(curl_string)
-
-    if opts[:connect]
-      puts "Connecting to your VM #{hostname}.delivery.puppetlabs.net. Thanks for flying vmify!"
-      exec("ssh -i ~/.ssh/id_rsa-acceptance root@#{hostname}.delivery.puppetlabs.net -o StrictHostKeyChecking=no;")
+    if opts[:remove]
+      hostname  = opts.fetch(:remove)
+      output = `curl -X DELETE --url http://vmpooler.delivery.puppetlabs.net/vm/#{hostname} ;`
+      result = /true/.match(output)
+      if result
+        puts "#{hostname} has been successfully deallocated!"
+      else
+        puts "Couldn't destroy #{hostname}!"
+      end
     else
-      puts "Your VM is alive at: #{hostname}.delivery.puppetlabs.net. Thanks for flying vmify!"
+      os        = opts.fetch(:operatingsystem) if opts[:operatingsystem]
+      version   = opts.fetch(:version)         if opts[:version]
+      arch      = opts.fetch(:arch)            if opts[:arch]
+
+      curl_string = build_curl_string(os, version, arch)
+      #puts "Debugging: #{curl_string}"
+      hostname = request_vm(curl_string)
+
+      if opts[:connect]
+        puts "Connecting to your new VM: #{hostname}.delivery.puppetlabs.net. Thanks for flying vmify!"
+        exec("ssh -i ~/.ssh/id_rsa-acceptance root@#{hostname}.delivery.puppetlabs.net -o StrictHostKeyChecking=no;")
+      else
+        puts "Your VM is up! FQDN: #{hostname}.delivery.puppetlabs.net. Thanks for flying vmify!"
+      end
     end
   end
 end
