@@ -1,0 +1,225 @@
+#! /Users/whopper/.rbenv/shims/ruby
+
+require 'cri'
+
+command = Cri::Command.define do
+  name        'vmify'
+  usage       'vmify [options] [arguments]
+
+               Example: vmify -o fedora -v 20 -a x64 -c
+
+               Requires the Puppet Labs acceptance SSH keys!'
+  summary     'A wrapper around Puppet Labs\' internal VMPooler system.'
+  description 'Used to quickly create and access VMPooler virtual
+               machines.'
+
+  flag   :h,  :help,  'show help for this command' do |value, cmd|
+    puts cmd.help
+    exit 0
+  end
+
+  option :o, :operatingsystem, 'specify operating system', argument: :optional
+  option :v, :version,  'specify version', argument: :optional
+  option :a, :arch, 'specify architecture', argument: :optional
+  option :c, :connect, 'remote into newly allocated VM', argument: :optional
+
+  run do |opts, args, cmd|
+    os        = opts.fetch(:operatingsystem) if opts[:operatingsystem]
+    version   = opts.fetch(:version)         if opts[:version]
+    arch      = opts.fetch(:arch)            if opts[:arch]
+
+    curl_string = build_curl_string(os, version, arch)
+    #puts "Debugging: #{curl_string}"
+    hostname = request_vm(curl_string)
+
+    if opts[:connect]
+      puts "Connecting to your VM #{hostname}.delivery.puppetlabs.net. Thanks for flying vmify!"
+      exec("ssh -i ~/.ssh/id_rsa-acceptance root@#{hostname}.delivery.puppetlabs.net -o StrictHostKeyChecking=no;")
+    else
+      puts "Your VM is alive at: #{hostname}.delivery.puppetlabs.net. Thanks for flying vmify!"
+    end
+  end
+end
+
+##
+# Interact with the VMPooler API using a string representing the desired VM.
+# Params: curl_string, OS, version and arch encoded into a string.
+# Returns: the hostname of the allocated VM, or nil if an error occurred.
+def request_vm(curl_string)
+  output = `curl -d --url http://vmpooler.delivery.puppetlabs.net/vm/#{curl_string} ;`
+  match = /\"hostname\": \"(.*)\"/.match(output)
+  match[1]
+end
+
+##
+# Construct the string which will be used to interact with the VMPooler API.
+# Params: operating system, version, arch from command line arguments (may be nil)
+# Returns: the constructed string to use with VMPooler
+def build_curl_string(os, version, arch)
+  curl_string = String.new()
+
+  # Determine the platform
+  os = get_os_selection if !os
+  if !is_valid_parameter?({:param_name => "os", :os_value => os, :param_value => os})
+    puts "Unrecognized operating system #{os}"
+    exit
+  end
+  curl_string = curl_string + os
+
+  # Determine the version of the platform
+  version = get_version_selection(os) if !version
+  if !is_valid_parameter?({:param_name => "version", :os_value => os, :param_value => version})
+    puts "Unrecognized version #{version} for operating system #{os}"
+    exit
+  end
+  curl_string = curl_string + "-#{version}"
+
+  # Determine the arch of the platform
+  arch = get_arch_selection(arch)
+  if !is_valid_parameter?({:param_name => "version", :os_value => os, :param_value => version})
+    puts "Unrecognized version #{version} for operating system #{os}"
+    exit
+  end
+
+  if !is_valid_parameter?({:param_name => "arch", :os_value => os, :param_value => arch})
+    puts "Unrecognized architecture #{arch}"
+    exit
+  end
+  curl_string = curl_string + "-#{arch}"
+  curl_string
+end
+
+##
+#  Checks provided options to verify VMPooler can handle them.
+#  Params: options hash, containing name of param to check, value of os, value of param to check
+#  Returns: true or false
+def is_valid_parameter?(options)
+  platforms = get_platforms
+  if options[:param_name] == "os"
+    if platforms.has_key?(options[:param_value])
+      true
+    else
+      false
+    end
+  elsif options[:param_name] == "version"
+    if platforms["#{options[:os_value]}"].include?(options[:param_value])
+      true
+    else
+      false
+    end
+  elsif options[:param_name] == "arch"
+    if options[:param_value] == "x86_64" || options[:param_value] == "i386"
+      true
+    else
+      false
+    end
+  end
+end
+
+##
+# Query the user for the desired operating system.
+# Params: none
+# Returns: string representing operating system
+def get_os_selection
+  os = String.new()
+  platforms = get_platforms
+
+  puts "Which operating system?\n"
+  platforms.each do |platform, versions|
+    puts "    #{platform}"
+  end
+  puts "\n"
+
+  while !is_valid_parameter?({:param_name => "os", :os_value => os, :param_value => os})
+    print "> "
+    puts "Invalid selection: #{os}\n\n" if !os.empty?
+    os = $stdin.gets.chomp!
+  end
+  return os
+end
+
+##
+# Query the user for the desired operating system version.
+# Requires the selected OS.
+# Params: the operating system.
+# Returns: string representing the operating system version
+def get_version_selection(os)
+  version = String.new()
+  platforms = get_platforms
+  puts "\nWhich version?\n"
+  default = platforms["#{os}"][-1]
+
+  platforms["#{os}"].each do |v|
+    if v == default
+      puts "  *  " + v
+    else
+      puts "     " + v
+    end
+  end
+  puts "\n"
+
+  while !is_valid_parameter?(:param_name => "version", :os_value => os, :param_value => version)
+    print "> "
+    puts "Invalid selection: #{version}\n\n" if !version.empty?
+    version = $stdin.gets.chomp!
+    version = default if version == ""
+  end
+  return version
+end
+
+##
+# Query the user for the desired architecture.
+# Params: the potentially nil value of arch passed as command line option
+# Returns: string representing the operating system architecture
+def get_arch_selection(arch)
+  if arch
+    if arch == "64" || arch == "x86_64"
+      arch = "x86_64"
+    elsif arch == "32" || arch == "i386"
+      arch = "i386"
+    else
+      puts "Unrecognized architecture #{arch}. Defaulting to x86_64"
+      arch = "x86_64"
+    end
+  else
+    arch = String.new()
+    puts "\nWhich architecture?\n"
+    puts "  *  x86_64"
+    puts "     i386"
+    puts "\n"
+
+    while !is_valid_parameter?({:param_name => "arch", :os_value => nil, :param_value => arch})
+      print "> "
+      puts "Invalid selection: #{arch}\n\n" if !arch.empty?
+      arch = $stdin.gets.chomp!
+      arch = "x86_64" if arch == ""
+    end
+  end
+  return arch
+end
+
+##
+# Helper method to return the current hash of supported operating systems
+# and versions.
+# Params: none
+# Returns: a hash of platforms and their available versions
+def get_platforms
+{
+   "amazon"     => ["201403"],
+   "arista"     => ["4"],
+   "centos"     => ["4", "5", "6", "7"],
+   "debian"     => ["6", "7"],
+   "fedora"     => ["19", "20"],
+   "opensuse"   => ["11"],
+   "oracle"     => ["5", "6"],
+   "osx"        => ["109"],
+   "redhat"     => ["4", "5", "6", "7"],
+   "scientific" => ["5", "6"],
+   "sles"       => ["10", "11", "12"],
+   "solaris"    => ["10", "11"],
+   "ubuntu"     => ["1004", "1204", "1404"],
+   "win"        => ["2003", "2003r2", "2008", "2008r2", "2012", "2012r2", "7", "8", "vista"]
+}
+end
+
+command.run(ARGV)
