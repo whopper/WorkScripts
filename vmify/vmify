@@ -1,5 +1,3 @@
-#! /Users/whopper/.rbenv/shims/ruby
-
 require 'cri'
 
 command = Cri::Command.define do
