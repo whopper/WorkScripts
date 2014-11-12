@@ -34,7 +34,6 @@ command = Cri::Command.define do
       arch      = opts.fetch(:arch)            if opts[:arch]
 
       curl_string = build_curl_string(os, version, arch)
-      #puts "Debugging: #{curl_string}"
       hostname = request_vm(curl_string)
 
       if opts[:connect]
