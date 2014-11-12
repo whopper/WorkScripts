@@ -6,12 +6,12 @@ command = Cri::Command.define do
   name        'vmify'
   usage       'vmify [options] [arguments]
 
-               Example: vmify -o fedora -v 20 -a x64 -c
+               Example: vmify -o fedora -v 20 -a x64 -c'
 
-               Requires the Puppet Labs acceptance SSH keys!'
   summary     'A wrapper around Puppet Labs\' internal VMPooler system.'
   description 'Used to quickly create and access VMPooler virtual
-               machines.'
+               machines. Requires the internal Puppet Labs acceptance
+               SSH keys.'
 
   flag   :h,  :help,  'show help for this command' do |value, cmd|
     puts cmd.help
@@ -45,6 +45,7 @@ end
 # Interact with the VMPooler API using a string representing the desired VM.
 # Params: curl_string, OS, version and arch encoded into a string.
 # Returns: the hostname of the allocated VM, or nil if an error occurred.
+#
 def request_vm(curl_string)
   output = `curl -d --url http://vmpooler.delivery.puppetlabs.net/vm/#{curl_string} ;`
   match = /\"hostname\": \"(.*)\"/.match(output)
@@ -55,6 +56,7 @@ end
 # Construct the string which will be used to interact with the VMPooler API.
 # Params: operating system, version, arch from command line arguments (may be nil)
 # Returns: the constructed string to use with VMPooler
+#
 def build_curl_string(os, version, arch)
   curl_string = String.new()
 
@@ -93,6 +95,7 @@ end
 #  Checks provided options to verify VMPooler can handle them.
 #  Params: options hash, containing name of param to check, value of os, value of param to check
 #  Returns: true or false
+#
 def is_valid_parameter?(options)
   platforms = get_platforms
   if options[:param_name] == "os"
@@ -120,6 +123,7 @@ end
 # Query the user for the desired operating system.
 # Params: none
 # Returns: string representing operating system
+#
 def get_os_selection
   os = String.new()
   platforms = get_platforms
@@ -143,6 +147,7 @@ end
 # Requires the selected OS.
 # Params: the operating system.
 # Returns: string representing the operating system version
+#
 def get_version_selection(os)
   version = String.new()
   platforms = get_platforms
@@ -171,6 +176,7 @@ end
 # Query the user for the desired architecture.
 # Params: the potentially nil value of arch passed as command line option
 # Returns: string representing the operating system architecture
+#
 def get_arch_selection(arch)
   if arch
     if arch == "64" || arch == "x86_64"
@@ -203,6 +209,7 @@ end
 # and versions.
 # Params: none
 # Returns: a hash of platforms and their available versions
+#
 def get_platforms
 {
    "amazon"     => ["201403"],
