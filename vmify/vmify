@@ -1,3 +1,5 @@
+#! /usr/env/ruby
+
 require 'cri'
 
 command = Cri::Command.define do
@@ -25,14 +27,7 @@ command = Cri::Command.define do
   run do |opts, args, cmd|
 
     if opts[:remove]
-      hostname  = opts.fetch(:remove)
-      output = `curl -X DELETE --url http://vmpooler.delivery.puppetlabs.net/vm/#{hostname} ;`
-      result = /true/.match(output)
-      if result
-        puts "#{hostname} has been successfully deallocated!"
-      else
-        puts "Couldn't destroy #{hostname}!"
-      end
+      remove_vm(opts.fetch(:remove))
     else
       os        = opts.fetch(:operatingsystem) if opts[:operatingsystem]
       version   = opts.fetch(:version)         if opts[:version]
@@ -43,8 +38,7 @@ command = Cri::Command.define do
       hostname = request_vm(curl_string)
 
       if opts[:connect]
-        puts "Connecting to your new VM: #{hostname}.delivery.puppetlabs.net. Thanks for flying vmify!"
-        exec("ssh -i ~/.ssh/id_rsa-acceptance root@#{hostname}.delivery.puppetlabs.net -o StrictHostKeyChecking=no;")
+        connect_vm(hostname)
       else
         puts "Your VM is up! FQDN: #{hostname}.delivery.puppetlabs.net. Thanks for flying vmify!"
       end
@@ -61,6 +55,31 @@ def request_vm(curl_string)
   output = `curl -d --url http://vmpooler.delivery.puppetlabs.net/vm/#{curl_string} ;`
   match = /\"hostname\": \"(.*)\"/.match(output)
   match[1]
+end
+
+##
+# Send request to the VMPooler API to deallocate a VM by its hostname.
+# Params: hostname
+# Returns: none
+#
+def remove_vm(hostname)
+  output = `curl -X DELETE --url http://vmpooler.delivery.puppetlabs.net/vm/#{hostname} ;`
+  result = /true/.match(output)
+  if result
+    puts "#{hostname} has been successfully deallocated!"
+  else
+    puts "Couldn't destroy #{hostname}!"
+  end
+end
+
+##
+# Remote into an allocated VM.
+# Params: hostname
+# Returns: none
+#
+def connect_vm(hostname)
+   puts "Connecting to your new VM: #{hostname}.delivery.puppetlabs.net. Thanks for flying vmify!"
+   exec("ssh -i ~/.ssh/id_rsa-acceptance root@#{hostname}.delivery.puppetlabs.net -o StrictHostKeyChecking=no;")
 end
 
 ##
