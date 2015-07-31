@@ -22,12 +22,15 @@ command = Cri::Command.define do
   option :v, :version,  'specify version', argument: :optional
   option :a, :arch, 'specify architecture', argument: :optional
   option :c, :connect, 'remote into newly allocated VM', argument: :optional
-  option :r, :remove, 'destroy an allocated vm by hostname', argument: :optional
+  option :r, :remove, 'destroy an allocated vm by hostname', argument: :required
+  option :s, :ssh, 'remote into an existing VM', argument: :required
 
   run do |opts, args, cmd|
 
     if opts[:remove]
       remove_vm(opts.fetch(:remove))
+    elsif opts[:ssh]
+      connect_vm(opts.fetch(:ssh))
     else
       os        = opts.fetch(:operatingsystem) if opts[:operatingsystem]
       version   = opts.fetch(:version)         if opts[:version]
@@ -244,16 +247,16 @@ def get_platforms
    "amazon"     => ["201403"],
    "arista"     => ["4"],
    "centos"     => ["4", "5", "6", "7"],
-   "debian"     => ["6", "7"],
-   "fedora"     => ["19", "20"],
+   "debian"     => ["6", "7", "8"],
+   "fedora"     => ["14", "19", "20", "21"],
    "opensuse"   => ["11"],
    "oracle"     => ["5", "6"],
    "osx"        => ["109"],
    "redhat"     => ["4", "5", "6", "7"],
    "scientific" => ["5", "6"],
    "sles"       => ["10", "11", "12"],
-   "solaris"    => ["10", "11"],
-   "ubuntu"     => ["1004", "1204", "1404"],
+   "solaris"    => ["10", "11", "112"],
+   "ubuntu"     => ["1004", "1204", "1404", "1410", "1504"],
    "win"        => ["2003", "2003r2", "2008", "2008r2", "2012", "2012r2", "7", "8", "vista"]
 }
 end
