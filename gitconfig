@@ -1,0 +1,27 @@
+[user]
+	name = Will Hopper
+	email = whopper@puppetlabs.com
+[alias]
+  co = checkout
+  ba = branch --all
+  st = status
+  
+[color]
+  ui = true
+  diff = auto
+  status = auto
+  branch = auto
+[core]
+  excludesfile = /Users/whopper/.gitignore
+  editor = vim -f
+  autocrlf = input
+[apply]
+  whitespace = nowarn
+[format]
+#  pretty = %C(yellow)%h%Creset %s %C(red)(%an, %cr)%Creset
+[github]
+  user = whopper
+[alias]
+  lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)an>%Creset' --abbrev-commit
+[push]
+	default = matching

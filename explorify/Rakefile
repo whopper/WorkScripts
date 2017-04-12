@@ -1,5 +1,0 @@
-require 'rake'
-
-RAKE_ROOT = File.dirname(__FILE__)
-$LOAD_PATH << File.join(RAKE_ROOT, 'tasks')
-Dir['tasks/*.rake'].each { |t| load t }
